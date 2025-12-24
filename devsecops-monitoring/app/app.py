@@ -1,19 +1,26 @@
 import logging
 import os
-from flask import Flask
+from flask import Flask, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 
-LOG_DIR = "/app"
-LOG_FILE = "/app/app.log"
+# Log file path
+LOG_FILE = os.path.join(os.path.dirname(__file__), "app.log")
 
-# pastikan folder log ada
-os.makedirs(LOG_DIR, exist_ok=True)
-
+# Logging configuration
 logging.basicConfig(
     filename=LOG_FILE,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s"
+)
+
+# Rate limiter configuration
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["100 per minute"]
 )
 
 @app.route("/")
@@ -22,14 +29,13 @@ def home():
     return "Hello DevSecOps"
 
 @app.route("/login")
+@limiter.limit("5 per minute")
 def login():
-    app.logger.warning("Failed login attempt")
-    return "Login failed"
-
-@app.route("/error")
-def error():
-    app.logger.error("Application error occurred")
-    return 1 / 0
+    app.logger.warning(
+        "Failed login attempt from IP %s",
+        request.remote_addr
+    )
+    return "Login failed", 401
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
